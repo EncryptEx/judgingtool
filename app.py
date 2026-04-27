@@ -28,9 +28,12 @@ st.set_page_config(
 )
 
 st.title("🔍 Project Validity Checker")
-st.caption("Flags commits made outside the hackathon weekend window (Fri 18:00 → Sun 23:59).")
+st.caption("Flags commits made outside the configured weekend window. Adjust start/end in the sidebar.")
 
 # ── sidebar: settings ─────────────────────────────────────────────────────────
+WEEKDAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday",
+                 "Friday", "Saturday", "Sunday"]
+
 with st.sidebar:
     st.header("⚙️ Settings")
     tz_name = st.text_input("Timezone", value="Europe/Madrid",
@@ -38,8 +41,16 @@ with st.sidebar:
     override_date = st.date_input(
         "Weekend anchor date",
         value=date.today(),
-        help="Any date — the script picks the surrounding Fri-Sun window.",
+        help="Any date — the script picks the surrounding window.",
     )
+    st.subheader("Window")
+    col_s, col_e = st.columns(2)
+    with col_s:
+        start_day = st.selectbox("Start day", WEEKDAY_NAMES, index=4)  # Friday
+        start_time = st.time_input("Start time", value=time(18, 0))
+    with col_e:
+        end_day = st.selectbox("End day", WEEKDAY_NAMES, index=6)      # Sunday
+        end_time = st.time_input("End time", value=time(23, 59))
 
 # ── main input ────────────────────────────────────────────────────────────────
 repo_input = st.text_input(
@@ -60,7 +71,13 @@ except (ZoneInfoNotFoundError, KeyError):
     tz = timezone.utc
 
 anchor = datetime.combine(override_date, time(12, 0), tzinfo=tz)
-window_start, window_end = get_weekend_window(anchor)
+window_start, window_end = get_weekend_window(
+    anchor,
+    start_weekday=WEEKDAY_NAMES.index(start_day),
+    start_hour=start_time.hour, start_minute=start_time.minute,
+    end_weekday=WEEKDAY_NAMES.index(end_day),
+    end_hour=end_time.hour, end_minute=end_time.minute,
+)
 
 ts_fmt = "%A %Y-%m-%d %H:%M:%S %Z"
 st.info(

@@ -62,22 +62,37 @@ def clone_repo(url: str) -> str:
     return tmp
 
 
-def get_weekend_window(anchor: datetime) -> tuple[datetime, datetime]:
+# weekday index: Monday=0 … Sunday=6
+WEEKDAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday",
+                 "Friday", "Saturday", "Sunday"]
+
+
+def get_weekend_window(
+    anchor: datetime,
+    start_weekday: int = 4,       # Friday
+    start_hour: int = 18,
+    start_minute: int = 0,
+    end_weekday: int = 6,         # Sunday
+    end_hour: int = 23,
+    end_minute: int = 59,
+) -> tuple[datetime, datetime]:
     """
-    Return (friday_6pm, sunday_midnight) for the weekend that contains
+    Return (window_start, window_end) for the weekend that contains
     or most recently preceded *anchor*.
 
-    Weekend = Friday 18:00:00 (local) → Sunday 23:59:59 (local).
+    Default: Friday 18:00 → Sunday 23:59:59 (local time).
+    All weekday args use Python convention: Monday=0 … Sunday=6.
     """
     tz = anchor.tzinfo
 
-    # weekday(): Monday=0 … Sunday=6  →  Friday=4
-    days_since_friday = (anchor.weekday() - 4) % 7
-    friday = anchor.date() - timedelta(days=days_since_friday)
-    sunday = friday + timedelta(days=2)
+    days_since_start = (anchor.weekday() - start_weekday) % 7
+    start_date = anchor.date() - timedelta(days=days_since_start)
+    # end_weekday must be >= start_weekday within the same week
+    days_to_end = (end_weekday - start_weekday) % 7
+    end_date = start_date + timedelta(days=days_to_end)
 
-    start = datetime.combine(friday, time(18, 0, 0), tzinfo=tz)
-    end   = datetime.combine(sunday, time(23, 59, 59), tzinfo=tz)
+    start = datetime.combine(start_date, time(start_hour, start_minute, 0), tzinfo=tz)
+    end   = datetime.combine(end_date,   time(end_hour,   end_minute,  59), tzinfo=tz)
     return start, end
 
 
@@ -138,6 +153,14 @@ def main() -> None:
     parser.add_argument("--tz", metavar="TIMEZONE", default=None,
                         help="Timezone name for the window, e.g. Europe/Madrid "
                              "(default: system local time)")
+    parser.add_argument("--start-day", metavar="DAY", default="Friday",
+                        help="Weekday the window opens (default: Friday)")
+    parser.add_argument("--start-time", metavar="HH:MM", default="18:00",
+                        help="Time the window opens on start day (default: 18:00)")
+    parser.add_argument("--end-day", metavar="DAY", default="Sunday",
+                        help="Weekday the window closes (default: Sunday)")
+    parser.add_argument("--end-time", metavar="HH:MM", default="23:59",
+                        help="Time the window closes on end day (default: 23:59)")
     args = parser.parse_args()
 
     # ── resolve repo path (clone if GitHub URL) ───────────────────────────────
@@ -176,7 +199,32 @@ def _run_check(repo_path: str, repo_label: str, args: argparse.Namespace,
     else:
         anchor = now
 
-    window_start, window_end = get_weekend_window(anchor)
+    def _parse_day(name: str) -> int:
+        name = name.strip().title()
+        if name not in WEEKDAY_NAMES:
+            print(f"[ERROR] Unknown day '{name}'. Use e.g. Friday, Saturday, Sunday.",
+                  file=sys.stderr)
+            sys.exit(1)
+        return WEEKDAY_NAMES.index(name)
+
+    def _parse_hhmm(s: str) -> tuple[int, int]:
+        try:
+            h, m = s.strip().split(":")
+            return int(h), int(m)
+        except ValueError:
+            print(f"[ERROR] Time '{s}' must be HH:MM.", file=sys.stderr)
+            sys.exit(1)
+
+    start_wd = _parse_day(args.start_day)
+    end_wd   = _parse_day(args.end_day)
+    start_h, start_m = _parse_hhmm(args.start_time)
+    end_h,   end_m   = _parse_hhmm(args.end_time)
+
+    window_start, window_end = get_weekend_window(
+        anchor,
+        start_weekday=start_wd, start_hour=start_h, start_minute=start_m,
+        end_weekday=end_wd,     end_hour=end_h,     end_minute=end_m,
+    )
 
     print("=" * 60)
     print(f"  Repo   : {repo_label}")
