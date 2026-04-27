@@ -1,4 +1,4 @@
-# Judging Tool
+# Judging Tool (Project validator)
 
 A hackathon project validator that checks whether all commits in a Git repository were made within the official weekend window (**Friday 18:00 → Sunday 23:59:59**). Designed for hackathon organizers to quickly flag suspicious submissions.
 
@@ -42,6 +42,8 @@ python3 check_project.py https://github.com/user/repo \
   --end-day Sunday   --end-time 20:00
 ```
 
+| Flag | Description | Default |
+|------|-------------|---------|
 | `--tz` | Timezone (e.g. `Europe/Madrid`) | system local |
 | `--weekend` | Anchor date `YYYY-MM-DD` | today |
 | `--start-day` | Weekday the window opens | `Friday` |
